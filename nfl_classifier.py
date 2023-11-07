@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from . import nflCombineRegressor
+from nfl_regressor import nflCombineRegressor
 import pandas as pd
+import openpyxl
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 from sklearn.tree import DecisionTreeClassifier
-#from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.svm import SVC
 from sklearn.naive_bayes import GaussianNB
@@ -14,6 +15,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.inspection import permutation_importance
 import hvplot
 
@@ -35,40 +37,52 @@ class nflCombineClassify(nflCombineRegressor):
                           'Shuttle','3Cone']]
         x_data_15_ = self.pd_2015[['40yd','Vertical','BP','Broad Jump',
                           'Shuttle','3Cone']]
+        #x_data_16_ = self.pd_2015[['40yd','Vertical','BP','Broad Jump',
+                          #'Shuttle','3Cone']]
         x_data_17_ = self.pd_2017[['40yd','Vertical','BP','Broad Jump',
                           'Shuttle','3Cone']]
 
         index_nan_13 = x_data_13_.dropna().index.tolist()
         index_nan_14 = x_data_14_.dropna().index.tolist()
         index_nan_15 = x_data_15_.dropna().index.tolist()
+        #index_nan_16 = x_data_16_.dropna().index.tolist()
         index_nan_17 = x_data_17_.dropna().index.tolist()
 
         y_data_13_nonan = self.snaps_cum_2013.loc[index_nan_13]
         y_data_14_nonan = self.snaps_cum_2014.loc[index_nan_14]
         y_data_15_nonan = self.snaps_cum_2015.loc[index_nan_15]
+        #y_data_16_nonan = self.snaps_cum_2016.loc[index_nan_16]
         y_data_17_nonan = self.snaps_cum_2017.loc[index_nan_17]
         
         x_data_13_nonan = x_data_13_.loc[index_nan_13]
         x_data_14_nonan = x_data_14_.loc[index_nan_14]
         x_data_15_nonan = x_data_15_.loc[index_nan_15]
+        #x_data_16_nonan = x_data_16_.loc[index_nan_16]
         x_data_17_nonan = x_data_17_.loc[index_nan_17]
         
         print(len(y_data_13_nonan), "Samples ended with - 2013")
         print(len(y_data_14_nonan), "Samples ended with - 2014")
         print(len(y_data_15_nonan), "Samples ended with - 2015")
+        #print(len(y_data_16_nonan), "Samples ended with - 2016")
         print(len(y_data_17_nonan), "Samples ended with - 2017")
         
         #convert to binary
         y_data_13_nonan[y_data_13_nonan > 0] = 1
         y_data_14_nonan[y_data_14_nonan > 0] = 1
         y_data_15_nonan[y_data_15_nonan > 0] = 1
+        #y_data_16_nonan[y_data_16_nonan > 0] = 1
         y_data_17_nonan[y_data_17_nonan > 0] = 1
         
         y = pd.concat([y_data_13_nonan, y_data_14_nonan, y_data_15_nonan, y_data_17_nonan]).astype(int)
         x = pd.concat([x_data_13_nonan, x_data_14_nonan, x_data_15_nonan, x_data_17_nonan])
         
         self.x_train_classify,self.X_test_classify,self.y_train_classify,self.y_test_classify = train_test_split(x,y)
-        
+
+    def feature_selection(self, k = 5):
+        self.feature_selector = SelectKBest(score_func = chi2, k=k)
+        self.kX_train_classify = self.feature_selector.fit_transform(self.x_train_classify, self.y_train_classify)
+        self.kX_test_classify = self.feature_selector.transform(self.X_test_classify)
+
     def model_test_classify(self):
         
         self.model1_classify = DecisionTreeClassifier(criterion='entropy')
@@ -77,13 +91,14 @@ class nflCombineClassify(nflCombineRegressor):
         self.model4_classify = GaussianNB()
         self.model5_classify = RandomForestClassifier(n_estimators=105,criterion='entropy',min_samples_leaf=4)
         self.model6_classify = LogisticRegression(max_iter=105)
-        
+        self.model7_classify = KNeighborsClassifier(n_neighbors=5)
         self.model1_classify.fit(self.x_train_classify,self.y_train_classify)
         self.model2_classify.fit(self.x_train_classify,self.y_train_classify)
         self.model3_classify.fit(self.x_train_classify,self.y_train_classify)
         self.model4_classify.fit(self.x_train_classify,self.y_train_classify)
         self.model5_classify.fit(self.x_train_classify,self.y_train_classify)
         self.model6_classify.fit(self.x_train_classify,self.y_train_classify)
+        self.model7_classify.fit(self.kX_train_classify,self.y_train_classify)
 
         
         y_pred1 = self.model1_classify.predict(self.X_test_classify)
@@ -92,6 +107,7 @@ class nflCombineClassify(nflCombineRegressor):
         y_pred4 = self.model4_classify.predict(self.X_test_classify)
         y_pred5 = self.model5_classify.predict(self.X_test_classify)
         y_pred6 = self.model6_classify.predict(self.X_test_classify)
+        y_pred7 = self.model7_classify.predict(self.kX_test_classify)
 
         
         print("DecisionTreeClassifier Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred1))
@@ -100,39 +116,56 @@ class nflCombineClassify(nflCombineRegressor):
         print("GaussianNB Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred4))
         print("RandomForestClassifier Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred5))
         print("LogisticRegression Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred6))
+        print("KNeighbors Classifier:",metrics.accuracy_score(self.y_test_classify, y_pred7))
         
 
-    def plot_feature_importance_classify(self):
+    def plot_feature_importance_classify(self,save_path=None):
         imps = permutation_importance(self.model4_classify, self.X_test_classify, self.y_test_classify)
-        #Calculate feature importance 
-        feature_imp1 = pd.Series(self.model1_classify.feature_importances_,index=self.X_test_classify.columns).sort_values(ascending=False)
-        feature_imp2 = pd.Series(self.model2_classify.feature_importances_,index=self.X_test_classify.columns).sort_values(ascending=False)
-        feature_imp4 = pd.Series(imps.importances_mean,index=self.X_test_classify.columns).sort_values(ascending=False)
-        feature_imp3 = pd.Series(self.model3_classify.coef_[0],index=self.X_test_classify.columns).sort_values(ascending=False)
-        feature_imp5 = pd.Series(self.model5_classify.feature_importances_,index=self.X_test_classify.columns).sort_values(ascending=False)
-        feature_imp6 = pd.Series(self.model6_classify.coef_[0],index=self.X_test_classify.columns).sort_values(ascending=False)
-        fig, axs = plt.subplots(2, 3)
+        # Calculate feature importance 
+        feature_imp1 = pd.Series(self.model1_classify.feature_importances_, index=self.X_test_classify.columns).sort_values(ascending=False)
+        feature_imp2 = pd.Series(self.model2_classify.feature_importances_, index=self.X_test_classify.columns).sort_values(ascending=False)
+        feature_imp4 = pd.Series(imps.importances_mean, index=self.X_test_classify.columns).sort_values(ascending=False)
+        feature_imp3 = pd.Series(self.model3_classify.coef_[0], index=self.X_test_classify.columns).sort_values(ascending=False)
+        feature_imp5 = pd.Series(self.model5_classify.feature_importances_, index=self.X_test_classify.columns).sort_values(ascending=False)
+        feature_imp6 = pd.Series(self.model6_classify.coef_[0], index=self.X_test_classify.columns).sort_values(ascending=False)
+        feature_imp7 = pd.Series(self.feature_selector.scores_, index=self.X_test_classify.columns).sort_values(ascending=False)
+
+        fig, axs = plt.subplots(2, 4, figsize=(15, 10))  # Set the number of subplots to 7 and adjust the figure size
         axs = axs.flatten()
-    
-        sns.barplot(ax=axs[0],x=feature_imp1,y=feature_imp1.index)
-        sns.barplot(ax=axs[1],x=feature_imp2,y=feature_imp2.index)
-        sns.barplot(ax=axs[2],x=feature_imp3,y=feature_imp3.index)
-        sns.barplot(ax=axs[3],x=feature_imp4,y=feature_imp4.index)
-        sns.barplot(ax=axs[4],x=feature_imp5,y=feature_imp5.index)
-        sns.barplot(ax=axs[5],x=feature_imp6,y=feature_imp6.index)
-        plt.xlabel('Feature Importance')
+
+        sns.barplot(x=feature_imp1, y=feature_imp1.index, ax=axs[0])
+        sns.barplot(x=feature_imp2, y=feature_imp2.index, ax=axs[1])
+        sns.barplot(x=feature_imp3, y=feature_imp3.index, ax=axs[2])
+        sns.barplot(x=feature_imp4, y=feature_imp4.index, ax=axs[3])
+        sns.barplot(x=feature_imp5, y=feature_imp5.index, ax=axs[4])
+        sns.barplot(x=feature_imp6, y=feature_imp6.index, ax=axs[5])
+        sns.barplot(x=feature_imp7, y=feature_imp7.index, ax=axs[6])
+        
+        for ax in axs:
+            ax.set_xlabel('Feature Importance')  # Set the same x-label for all subplots
+        plt.suptitle('Feature Importance by Model', fontsize=16)  # Universal title
+        
         axs[0].set_title('DecisionTreeClassifier')
         axs[1].set_title('GradientBoostingClassifier')
         axs[2].set_title('SVC')
         axs[3].set_title('GaussianNB')
         axs[4].set_title('RandomForestClassifier')
         axs[5].set_title('LogisticRegression')
-        plt.draw()
+        axs[6].set_title("KNeighborsClassifier")
+        plt.delaxes(axs[7])
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust the layout to accommodate the title
+
+        # Save the plot as a PNG image
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight', format='png')
+
         plt.show()
+
             
 if __name__ == '__main__':
     classify = nflCombineClassify('')
     classify.snaps_to_binary()
+    classify.feature_selection(k=5)
     classify.model_test_classify()
     lst = []
     cols = ['acc']
@@ -143,4 +176,4 @@ if __name__ == '__main__':
     #     h_para =+ 5 
     # acc = pd.DataFrame(lst,columns=cols)
     # hvplot.show(acc.plot())
-    classify.plot_feature_importance_classify()
+    classify.plot_feature_importance_classify(save_path='./plots/feature_importance_plot.png')
