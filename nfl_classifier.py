@@ -116,7 +116,7 @@ class nflCombineClassify(nflCombineRegressor):
         print("GaussianNB Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred4))
         print("RandomForestClassifier Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred5))
         print("LogisticRegression Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred6))
-        print("KNeighbors Classifier:",metrics.accuracy_score(self.y_test_classify, y_pred7))
+        print("KNeighbors Classifier Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred7))
         
 
     def plot_feature_importance_classify(self,save_path=None):
