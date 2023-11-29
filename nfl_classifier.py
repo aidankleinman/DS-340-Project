@@ -3,6 +3,7 @@
 
 from nfl_regressor import nflCombineRegressor
 import pandas as pd
+import numpy as np
 import openpyxl
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
@@ -39,50 +40,59 @@ class nflCombineClassify(nflCombineRegressor):
                           'Shuttle','3Cone']]
         #x_data_16_ = self.pd_2015[['40yd','Vertical','BP','Broad Jump',
                           #'Shuttle','3Cone']]
-        x_data_17_ = self.pd_2017[['40yd','Vertical','BP','Broad Jump',
-                          'Shuttle','3Cone']]
+        #x_data_17_ = self.pd_2017[['40yd','Vertical','BP','Broad Jump',
+                          #'Shuttle','3Cone']]
 
         index_nan_13 = x_data_13_.dropna().index.tolist()
         index_nan_14 = x_data_14_.dropna().index.tolist()
         index_nan_15 = x_data_15_.dropna().index.tolist()
         #index_nan_16 = x_data_16_.dropna().index.tolist()
-        index_nan_17 = x_data_17_.dropna().index.tolist()
+        #index_nan_17 = x_data_17_.dropna().index.tolist()
 
         y_data_13_nonan = self.snaps_cum_2013.loc[index_nan_13]
         y_data_14_nonan = self.snaps_cum_2014.loc[index_nan_14]
         y_data_15_nonan = self.snaps_cum_2015.loc[index_nan_15]
         #y_data_16_nonan = self.snaps_cum_2016.loc[index_nan_16]
-        y_data_17_nonan = self.snaps_cum_2017.loc[index_nan_17]
+        #y_data_17_nonan = self.snaps_cum_2017.loc[index_nan_17]
         
         x_data_13_nonan = x_data_13_.loc[index_nan_13]
         x_data_14_nonan = x_data_14_.loc[index_nan_14]
         x_data_15_nonan = x_data_15_.loc[index_nan_15]
         #x_data_16_nonan = x_data_16_.loc[index_nan_16]
-        x_data_17_nonan = x_data_17_.loc[index_nan_17]
+        #x_data_17_nonan = x_data_17_.loc[index_nan_17]
         
         print(len(y_data_13_nonan), "Samples ended with - 2013")
         print(len(y_data_14_nonan), "Samples ended with - 2014")
         print(len(y_data_15_nonan), "Samples ended with - 2015")
         #print(len(y_data_16_nonan), "Samples ended with - 2016")
-        print(len(y_data_17_nonan), "Samples ended with - 2017")
+        #print(len(y_data_17_nonan), "Samples ended with - 2017")
         
         #convert to binary
         y_data_13_nonan[y_data_13_nonan > 0] = 1
         y_data_14_nonan[y_data_14_nonan > 0] = 1
         y_data_15_nonan[y_data_15_nonan > 0] = 1
         #y_data_16_nonan[y_data_16_nonan > 0] = 1
-        y_data_17_nonan[y_data_17_nonan > 0] = 1
+        #y_data_17_nonan[y_data_17_nonan > 0] = 1
         
-        y = pd.concat([y_data_13_nonan, y_data_14_nonan, y_data_15_nonan, y_data_17_nonan]).astype(int)
-        x = pd.concat([x_data_13_nonan, x_data_14_nonan, x_data_15_nonan, x_data_17_nonan])
-        
-        self.x_train_classify,self.X_test_classify,self.y_train_classify,self.y_test_classify = train_test_split(x,y)
+        y = pd.concat([y_data_13_nonan, y_data_14_nonan, y_data_15_nonan]).astype(int)
+        x = pd.concat([x_data_13_nonan, x_data_14_nonan, x_data_15_nonan])
+        #split the data into data to train the model on and unseen data to test the model for a final assessment
+        self.x_train_classify,self.X_test_classify,self.y_train_classify,self.y_test_classify = train_test_split(x,y,train_size=0.75,test_size=0.25)
+        print("Training data size: ",self.x_train_classify.shape[0])
+        print("Testing data size: ", self.X_test_classify.shape[0])
+
+    #def split_train_validation(self, validation_size=0.50):
+        # Split the current training data into a smaller training set and a validation set for hyperparameter tuning
+        #self.x_train_smaller, self.x_validation, self.y_train_smaller, self.y_validation = \
+            #train_test_split(self.x_train_classify, self.y_train_classify, test_size=validation_size, random_state=42)
+        #print("small Training data size: ",self.x_train_smaller.shape[0])
+        #print("validation data size: ", self.x_validation.shape[0])
 
     def feature_selection(self, k = 5):
         self.feature_selector = SelectKBest(score_func = chi2, k=k)
         self.kX_train_classify = self.feature_selector.fit_transform(self.x_train_classify, self.y_train_classify)
+        #self.kX_validation = self.feature_selector.transform(self.x_validation)
         self.kX_test_classify = self.feature_selector.transform(self.X_test_classify)
-
     def model_test_classify(self):
         
         self.model1_classify = DecisionTreeClassifier(criterion='entropy')
@@ -90,7 +100,7 @@ class nflCombineClassify(nflCombineRegressor):
         self.model3_classify = SVC(kernel='linear')
         self.model4_classify = GaussianNB()
         self.model5_classify = RandomForestClassifier(n_estimators=105,criterion='entropy',min_samples_leaf=4)
-        self.model6_classify = LogisticRegression(max_iter=105)
+        self.model6_classify = LogisticRegression(max_iter=200)
         self.model7_classify = KNeighborsClassifier(n_neighbors=5)
         self.model1_classify.fit(self.x_train_classify,self.y_train_classify)
         self.model2_classify.fit(self.x_train_classify,self.y_train_classify)
@@ -110,15 +120,71 @@ class nflCombineClassify(nflCombineRegressor):
         y_pred7 = self.model7_classify.predict(self.kX_test_classify)
 
         
-        print("DecisionTreeClassifier Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred1))
-        print("GradientBoostingClassifier Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred2))
-        print("SVC Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred3))
-        print("GaussianNB Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred4))
-        print("RandomForestClassifier Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred5))
-        print("LogisticRegression Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred6))
-        print("KNeighbors Classifier Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred7))
-        
+        print("DecisionTreeClassifier Validation Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred1))
+        print("GradientBoostingClassifier Validation Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred2))
+        print("SVC Validation Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred3))
+        print("GaussianNB Validation Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred4))
+        print("RandomForestClassifier Validation Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred5))
+        print("LogisticRegression Validation Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred6))
+        print("KNeighbors Classifier Validation Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred7))
 
+    def model_evaluation(self, k=5):
+        x_data_17_ = self.pd_2017[['40yd','Vertical','BP','Broad Jump',
+                          'Shuttle','3Cone']]
+        index_nan_17 = x_data_17_.dropna().index.tolist()
+        y_data_17_nonan = self.snaps_cum_2017.loc[index_nan_17]
+        x_data_17_nonan = x_data_17_.loc[index_nan_17]
+        y = pd.concat([y_data_17_nonan]).astype(int)
+        x = pd.concat([x_data_17_nonan])
+
+        self.x_train_classify,self.X_test_classify,self.y_train_classify,self.y_test_classify = train_test_split(x,y,train_size=0.65,test_size=0.35)
+        #self.feature_selector = SelectKBest(score_func = chi2, k=k)
+        #self.kX_train_classify = self.feature_selector.fit_transform(self.x_train_classify, self.y_train_classify)
+        self.kX_test_classify = self.feature_selector.transform(self.X_test_classify)
+
+        y_pred1 = self.model1_classify.predict(self.X_test_classify)
+        y_pred2 = self.model2_classify.predict(self.X_test_classify)
+        y_pred3 = self.model3_classify.predict(self.X_test_classify)
+        y_pred4 = self.model4_classify.predict(self.X_test_classify)
+        y_pred5 = self.model5_classify.predict(self.X_test_classify)
+        y_pred6 = self.model6_classify.predict(self.X_test_classify)
+        y_pred7 = self.model7_classify.predict(self.kX_test_classify)
+
+        #print("Unique values in y_test_classify:", np.unique(self.y_test_classify))
+        #print("Unique values in y_pred1:", np.unique(y_pred1))
+        #print("Unique values in y_pred2:", np.unique(y_pred2))
+        #print("Unique values in y_pred3:", np.unique(y_pred3))
+        #print("Unique values in y_pred4:", np.unique(y_pred4))
+        #print("Unique values in y_pred5:", np.unique(y_pred5))
+        #print("Unique values in y_pred6:", np.unique(y_pred6))
+        #print("Unique values in y_pred7:", np.unique(y_pred7))
+
+        # Now check the format of the targets and predictions
+        #print("y_test_classify shape:", self.y_test_classify.shape)
+        #print("y_pred1 shape:", y_pred1.shape)
+        #print("y_pred2 shape:", y_pred2.shape)
+        #print("y_pred3 shape:", y_pred3.shape)
+        #print("y_pred4 shape:", y_pred4.shape)
+        #print("y_pred5 shape:", y_pred5.shape)
+        #print("y_pred6 shape:", y_pred6.shape)
+        #print("y_pred7 shape:", y_pred7.shape)
+
+        # Example snippet to verify X_test_classify and y_test_classify assignments
+        #print("Shape of X_test_classify:", self.X_test_classify.shape)
+        #print("Unique values in X_test_classify:", np.unique(self.X_test_classify))
+        #print("Shape of y_test_classify:", self.y_test_classify.shape)
+        #print("Unique values in y_test_classify:", np.unique(self.y_test_classify))
+
+
+        print("DecisionTreeClassifier Testing Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred1))
+        print("GradientBoostingClassifier Testing Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred2))
+        print("SVC Testing Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred3))
+        print("GaussianNB Testing Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred4))
+        print("RandomForestClassifier Testing Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred5))
+        print("LogisticRegression Testing Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred6))
+        print("KNeighbors Classifier Testing Accuracy:",metrics.accuracy_score(self.y_test_classify, y_pred7))
+
+    
     def plot_feature_importance_classify(self,save_path=None):
         imps = permutation_importance(self.model4_classify, self.X_test_classify, self.y_test_classify)
         # Calculate feature importance 
@@ -165,8 +231,10 @@ class nflCombineClassify(nflCombineRegressor):
 if __name__ == '__main__':
     classify = nflCombineClassify('')
     classify.snaps_to_binary()
+    #classify.split_train_validation(0.2)
     classify.feature_selection(k=5)
     classify.model_test_classify()
+    classify.model_evaluation()
     lst = []
     cols = ['acc']
     # h_para = 100
